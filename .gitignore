@@ -1,0 +1,5 @@
+.venv/
+__pycache__/
+*.db
+.mypy_cache
+Month 1/Week 2/Smart-Log-Monitor/
