@@ -3,6 +3,17 @@ from pydantic import BaseModel, field_validator
 
 app = FastAPI()
 
+inventory = {
+    1: {"name": "Laptop", "price": 999.99, "stock": 5},
+    2: {"name": "Mouse", "price": 25.50, "stock": 10},
+    3: {"name": "Keyboard", "price": 45.00, "stock": 2},
+    4: {"name": "Monitor", "price": 150.00, "stock": 0},
+}
+
+
+# The user's cart Format: {product_id: quantity}
+cart = {}
+
 
 class CartItem(BaseModel):
     product_id: int
@@ -32,17 +43,6 @@ class CartUpdate(BaseModel):
             raise ValueError("quantity cant be 0 or negative")
 
         return q
-
-
-inventory = {
-    1: {"name": "Laptop", "price": 999.99, "stock": 5},
-    2: {"name": "Mouse", "price": 25.50, "stock": 10},
-    3: {"name": "Keyboard", "price": 45.00, "stock": 2},
-    4: {"name": "Monitor", "price": 150.00, "stock": 0},
-}
-
-# The user's cart Format: {product_id: quantity}
-cart = {}
 
 
 @app.get("/products")
