@@ -2,4 +2,5 @@
 __pycache__/
 *.db
 .mypy_cache
+*.env
 Month 1/Week 2/Smart-Log-Monitor/
