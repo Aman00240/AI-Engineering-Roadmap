@@ -4,3 +4,5 @@ __pycache__/
 .mypy_cache
 *.env
 Month 1/Week 2/Smart-Log-Monitor/
+chroma/
+chroma_db/
