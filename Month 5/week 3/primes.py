@@ -1,0 +1,22 @@
+def is_prime(n):
+    if n <= 1:
+        return False
+    if n == 2:
+        return True
+    if n % 2 == 0:
+        return False
+    max_divisor = int(n**0.5) + 1
+    for d in range(3, max_divisor, 2):
+        if n % d == 0:
+            return False
+    return True
+
+prime_sum = 0
+prime_count = 0
+num = 2
+while prime_count < 50:
+    if is_prime(num):
+        prime_sum += num
+        prime_count += 1
+    num += 1
+print(prime_sum)

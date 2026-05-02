@@ -17,6 +17,25 @@ from tavily import AsyncTavilyClient
 load_dotenv()
 
 
+class Fact(BaseModel):
+    claim: str = Field(description="The specific fatual claim")
+    source_url: str = Field(
+        description="The exact URL where the fact was found,If you cannot find a URL you MUST output 'I don't know'."
+    )
+
+
+class ResearchReport(BaseModel):
+    topic: str = Field(description="The main subject of the research")
+    summary: str = Field(description="A 2-sentence executive summary")
+    key_facts: list[Fact] = Field(
+        description="A list of exactly 3 important facts found, with their specific URLs"
+    )
+    source_count: int = Field(description="The number of unique URLs used")
+    sentiment: str = Field(
+        description="The overall tone of the information (e.g., Positive, Neutral, Negative)"
+    )
+
+
 class ReadUrlInput(BaseModel):
     url: str = Field(description="url for the tool")
 
@@ -25,12 +44,69 @@ class SearchToolInput(BaseModel):
     query: str = Field(description="The query to search on web")
 
 
+class SaveFileInput(BaseModel):
+    filename: str = Field(
+        description="The name of the file to save,including the extension (e.g., summary.txt)"
+    )
+    content: str = Field(description="The full text content to write into file")
+
+
+class ReadFileInput(BaseModel):
+    filename: str = Field(
+        description="The name of the file to read/ or its path with extensoin (summary.txt)"
+    )
+
+
+class CalculatorInput(BaseModel):
+    expression: str = Field(
+        description="A mathematical expression to evaluate (e.g., '75000 * 2', '100 / 4')"
+    )
+
+
 class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
 
 
 client = AsyncClient(api_key=os.environ.get("groq_key"))
 tavily = AsyncTavilyClient(api_key=os.environ.get("tavily_key"))
+
+
+def sync_save_file(filename: str, content: str) -> str:
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(content)
+    return f"Success: Content saved to {filename}"
+
+
+async def save_file(filename: str, content: str) -> str:
+    print(f"Saving to file:{filename}...")
+    try:
+        return await asyncio.to_thread(sync_save_file, filename, content)
+    except Exception as e:
+        return f"Error: Failed to save file - {str(e)}"
+
+
+def sync_read_file(filename: str) -> str:
+    if not os.path.exists(filename):
+        return f"Error: File '{filename}' does not exist"
+    with open(filename, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+async def read_file(filename: str) -> str:
+    print(f"Reading from file: {filename}...")
+    try:
+        return await asyncio.to_thread(sync_read_file, filename)
+    except Exception as e:
+        return f"Error: Failed to read file - {e}"
+
+
+async def calculate_tool(expression: str) -> str:
+    print(f"Calculating: {expression}...")
+    try:
+        result = eval(expression)
+        return f"Result: {result}"
+    except Exception as e:
+        return f"Error evaluating expression: {str(e)}"
 
 
 async def search_tool(query: str):
@@ -71,7 +147,11 @@ You have access to two specific tools. You must use them strategically to gather
 TOOL USAGE RULES:
 1. search_tool: Use this for current events, real-time data (weather, prices), or to find authoritative URLs on a specific topic.
 2. read_url_tool: Use this to scrape the full text of a webpage.
-3. TOOL CHAINING (IMPORTANT): If you need to summarize an article or extract deep context, first use the `search_tool` to find the direct URL, and then use the `read_url_tool`
+3. If the user asks you to save or write something to a file, use the save_to_file tool
+5. read_file: Use this whenever you need to read, analyze, or verify the contents of a local file.
+6. calculate_tool: MANDATORY. You are strictly PROHIBITED from performing math operation yourself.
+    Even for simple multiplication, you MUST pass the numbers to this tool.
+7. TOOL CHAINING (IMPORTANT): If you need to summarize an article or extract deep context, first use the `search_tool` to find the direct URL, and then use the `read_url_tool`
     to read that exact URL. Do not guess or hallucinate the contents of a webpage based solely on search snippets.
 
 OUTPUT GUIDELINES:
@@ -83,6 +163,18 @@ OUTPUT GUIDELINES:
             URLs you used to gather the information.
 - Accuracy: If the tools fail to return relevant information, state clearly that you cannot find the answer.
             Do not invent data. Be concise and direct.
+* FACT CHECKING: You must cite a valid URL for every single claim you make.
+            If you cannot find a valid URL to support a fact, you must set the source_url to
+            exactly "I don't know". Do not invent URLs.
+- REPORT SAVING RULE: If the user asks to save the findings to a file,you MUST call save_file first
+            with the summarized text, and then call final_report_tool
+            as your very last action to provide the structured data.
+- FINAL STEP: Once you have gathered all the necessary information, you MUST call the final_report_tool
+            to present your findings . Do not provide a text summary in the chat; only use the tool
+- TERMINAL PROTOCOL: The final_report_tool is your only valid exit signal.
+            Even if you have just called save_file or any tool, you MUST follow it with a call to final_report_tool.
+- PROHIBITED: Do not end the conversation with a text confirmation like "I have saved the file., etc"
+            The report tool must be the final action in every research task.
 """
 
 
@@ -180,9 +272,16 @@ def should_continue(state: AgentState):
     last_message = state["messages"][-1]
 
     if hasattr(last_message, "tool_calls") and len(last_message.tool_calls) > 0:
+        for tool_call in last_message.tool_calls:
+            if tool_call["name"] == "final_report_tool":
+                return END
         return "tools"
 
     return END
+
+
+async def final_report_tool(**kwargs):
+    return "Report generated and formatted."
 
 
 workflow = StateGraph(AgentState)
@@ -211,10 +310,49 @@ tool_list = [
             "parameters": SearchToolInput.model_json_schema(),
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_file",
+            "description": "Saves the content to a file",
+            "parameters": SaveFileInput.model_json_schema(),
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_file",
+            "description": "Saves the content to a file",
+            "parameters": ReadFileInput.model_json_schema(),
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "calculate_tool",
+            "description": "A high-precision calculator. Use this for ALL math operations, including simple multiplication, to ensure accuracy.",
+            "parameters": CalculatorInput.model_json_schema(),
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "final_report_tool",
+            "description": "ONLY use this to provide your final answer after research is complete.",
+            "parameters": ResearchReport.model_json_schema(),
+        },
+    },
 ]
 
 
-available_tools = {"read_url_tool": read_url_tool, "search_tool": search_tool}
+available_tools = {
+    "read_url_tool": read_url_tool,
+    "search_tool": search_tool,
+    "save_file": save_file,
+    "read_file": read_file,
+    "calculate_tool": calculate_tool,
+    "final_report_tool": final_report_tool,
+}
 
 
 async def start_chat():
@@ -241,16 +379,18 @@ async def start_chat():
             for node_name, value in event.items():
                 if node_name == "agent":
                     last_msg = value["messages"][-1]
+
+                    if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
+                        for tc in last_msg.tool_calls:
+                            if tc["name"] == "final_report_tool":
+                                print("\n--- FINAL RESEARCH REPORT (JSON) ---")
+                                print(json.dumps(tc["args"], indent=4))
+                                print("---------------------------------------\n")
+
                     if last_msg.content:
                         print(f"\nAI: {last_msg.content}\n")
                     else:
                         print("\nAI: (Thinking/Calling Tools...)\n")
-
-        image_bytes = app.get_graph().draw_mermaid_png()
-
-        file_name = "reader.png"
-        with open(file_name, "wb") as f:
-            f.write(image_bytes)
 
 
 asyncio.run(start_chat())

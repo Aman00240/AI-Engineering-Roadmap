@@ -25,12 +25,69 @@ class SearchToolInput(BaseModel):
     query: str = Field(description="The query to search on web")
 
 
+class SaveFileInput(BaseModel):
+    filename: str = Field(
+        description="The name of the file to save,including the extension (e.g., summary.txt)"
+    )
+    content: str = Field(description="The full text content to write into file")
+
+
+class ReadFileInput(BaseModel):
+    filename: str = Field(
+        description="The name of the file to read/ or its path with extensoin (summary.txt)"
+    )
+
+
+class CalculatorInput(BaseModel):
+    expression: str = Field(
+        description="A mathematical expression to evaluate (e.g., '75000 * 2', '100 / 4')"
+    )
+
+
 class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
 
 
 client = AsyncClient(api_key=os.environ.get("groq_key"))
 tavily = AsyncTavilyClient(api_key=os.environ.get("tavily_key"))
+
+
+def sync_save_file(filename: str, content: str) -> str:
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(content)
+    return f"Success: Content saved to {filename}"
+
+
+async def save_file(filename: str, content: str) -> str:
+    print(f"Saving to file:{filename}...")
+    try:
+        return await asyncio.to_thread(sync_save_file, filename, content)
+    except Exception as e:
+        return f"Error: Failed to save file - {str(e)}"
+
+
+def sync_read_file(filename: str) -> str:
+    if not os.path.exists(filename):
+        return f"Error: File '{filename}' does not exist"
+    with open(filename, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+async def read_file(filename: str) -> str:
+    print(f"Reading from file: {filename}...")
+    try:
+        return await asyncio.to_thread(sync_read_file, filename)
+    except Exception as e:
+        return f"Error: Failed to read file - {e}"
+
+
+async def calculate_tool(expression: str) -> str:
+    print(f"Calculating: {expression}...")
+    try:
+        result = eval(expression)
+        return f"Result: {result}"
+    except Exception as e:
+        return f"Error evaluating expression: {str(e)}"
 
 
 async def search_tool(query: str):
@@ -71,7 +128,11 @@ You have access to two specific tools. You must use them strategically to gather
 TOOL USAGE RULES:
 1. search_tool: Use this for current events, real-time data (weather, prices), or to find authoritative URLs on a specific topic.
 2. read_url_tool: Use this to scrape the full text of a webpage.
-3. TOOL CHAINING (IMPORTANT): If you need to summarize an article or extract deep context, first use the `search_tool` to find the direct URL, and then use the `read_url_tool`
+3. If the user asks you to save or write something to a file, use the save_to_file tool
+5. read_file: Use this whenever you need to read, analyze, or verify the contents of a local file.
+6. calculate_tool: MANDATORY. You are strictly PROHIBITED from performing math operation yourself.
+    Even for simple multiplication, you MUST pass the numbers to this tool.
+7. TOOL CHAINING (IMPORTANT): If you need to summarize an article or extract deep context, first use the `search_tool` to find the direct URL, and then use the `read_url_tool`
     to read that exact URL. Do not guess or hallucinate the contents of a webpage based solely on search snippets.
 
 OUTPUT GUIDELINES:
@@ -211,10 +272,40 @@ tool_list = [
             "parameters": SearchToolInput.model_json_schema(),
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_file",
+            "description": "Saves the content to a file",
+            "parameters": SaveFileInput.model_json_schema(),
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_file",
+            "description": "Saves the content to a file",
+            "parameters": ReadFileInput.model_json_schema(),
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "calculate_tool",
+            "description": "A high-precision calculator. Use this for ALL math operations, including simple multiplication, to ensure accuracy.",
+            "parameters": CalculatorInput.model_json_schema(),
+        },
+    },
 ]
 
 
-available_tools = {"read_url_tool": read_url_tool, "search_tool": search_tool}
+available_tools = {
+    "read_url_tool": read_url_tool,
+    "search_tool": search_tool,
+    "save_file": save_file,
+    "read_file": read_file,
+    "calculate_tool": calculate_tool,
+}
 
 
 async def start_chat():
@@ -245,12 +336,6 @@ async def start_chat():
                         print(f"\nAI: {last_msg.content}\n")
                     else:
                         print("\nAI: (Thinking/Calling Tools...)\n")
-
-        image_bytes = app.get_graph().draw_mermaid_png()
-
-        file_name = "reader.png"
-        with open(file_name, "wb") as f:
-            f.write(image_bytes)
 
 
 asyncio.run(start_chat())
