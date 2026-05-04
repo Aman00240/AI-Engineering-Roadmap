@@ -4,4 +4,5 @@ def fibonacci(n):
         fib_series.append(fib_series[-1] + fib_series[-2])
     return fib_series
 
-print(fibonacci(7))
+n = 7
+print(fibonacci(n))

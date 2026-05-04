@@ -12,11 +12,11 @@ def is_prime(n):
     return True
 
 prime_sum = 0
-prime_count = 0
+count = 0
 num = 2
-while prime_count < 50:
+while count < 50:
     if is_prime(num):
         prime_sum += num
-        prime_count += 1
+        count += 1
     num += 1
 print(prime_sum)

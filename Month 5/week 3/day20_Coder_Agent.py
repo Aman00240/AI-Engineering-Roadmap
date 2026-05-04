@@ -1,7 +1,6 @@
 import json
 import os
 import subprocess
-from ast import arguments
 from typing import Any
 
 from dotenv import load_dotenv
@@ -93,13 +92,13 @@ system_prompt = """You are an Autonomous Software Engineer. Your goal is to writ
 
 You have access to tools to save files and execute Python scripts.
 
-WORKFLOW:
-1. NEVER output Python code in the standard chat text.
-2. When asked to write a program, you MUST pass the complete, working Python code directly into the `content` argument of the `save_file` tool.
-3. Use the `execute_python_file` tool to run the file you just saved.
-4. If the execution returns an Error, you must read the error, rewrite the corrected code, save it again (overwriting), and execute it again until it works.
-5. Once the code executes successfully, you MUST STOP calling tools. Tell the user the final output in standard plain text.
-6. CRITICAL FORMATTING: NEVER use square brackets `[` or `]` in your final chat response. If the script output is a list, format it as comma-separated numbers (e.g., 1, 2, 3) to prevent JSON parser errors.
+WORKFLOW & RULES:
+1. ACTION FIRST: When asked to write a program, your very first action MUST be to call the `save_file` tool. Do not type any introductory text, explanations, or raw code in the chat.
+2. PASSING CODE: Pass the complete, working Python code strictly into the `content` argument of the `save_file` tool.
+3. EXECUTE: Use the `execute_python_file` tool to run the file you just saved.
+4. SILENT DEBUGGING: If the execution returns an Error, you MUST NOT explain the error or chat. SILENTLY generate the corrected code and pass it directly into the `save_file` tool again.
+5. FINAL OUTPUT: Once the code executes successfully, you MUST STOP calling tools. Tell the user the final output in standard plain text.
+6. CRITICAL FORMATTING: NEVER use square brackets `[` or `]` in your final chat response. If the script output is a list, format it as comma-separated numbers.
 """
 
 
