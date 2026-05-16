@@ -1,1 +1,1 @@
-Deployment Region = us-east
+Deployment Region = eu-west
