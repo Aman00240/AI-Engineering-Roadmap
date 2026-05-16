@@ -1,1 +1,1 @@
-Deployment Region = ap-south
+Deployment Region = eu-west
