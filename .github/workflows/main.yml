@@ -30,4 +30,4 @@ jobs:
 
             - name: Build Docker Image
               working-directory: "Month 6/week 1"
-              run: docker build -t test-api-image
+              run: docker build -t test-api-image .
