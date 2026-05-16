@@ -1,0 +1,14 @@
+name: First CI Pipeline
+
+on:
+    push:
+        branches:
+            - main
+
+jobs:
+    hello-world-job:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Print a message
+              run: echo "Pipeline Started! This code is runnig on GitHub server"
